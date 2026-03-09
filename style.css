@@ -1,0 +1,91 @@
+:root {
+    --p1-color: #ff4757; --p2-color: #2e86de; 
+    --p3-color: #2ed573; --p4-color: #feca57;
+    --tile-size: 65px; --wood: #2c1e16;
+}
+
+body {
+    margin: 0; background: #0b0e14; color: white;
+    font-family: 'Segoe UI', sans-serif;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 100vh; overflow: hidden;
+}
+
+#overlay, #win-screen {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.95);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 2000; backdrop-filter: blur(10px);
+}
+
+#win-screen { display: none; z-index: 3000; }
+#win-screen h1 { font-size: 4rem; margin: 0; text-transform: uppercase; text-shadow: 0 10px 20px rgba(0,0,0,0.8); }
+.trophy { font-size: 6rem; animation: float 2s ease-in-out infinite; margin-bottom: 20px; }
+
+@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-20px) scale(1.1); } }
+
+.card { background: #1e272e; padding: 40px; border-radius: 20px; text-align: center; border: 1px solid #34495e; box-shadow: 0 20px 50px rgba(0,0,0,0.8); width: 400px; }
+
+#player-count { display: block; width: 100%; padding: 12px; margin: 15px 0 25px 0; border-radius: 8px; font-size: 1.1rem; background: #2f3640; color: white; border: 1px solid #718093; box-sizing: border-box; }
+
+.p-group { display: none; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.p-group.active { display: flex; }
+.p-group input { flex: 1; padding: 12px; border-radius: 8px; border: none; font-size: 1rem; margin: 0; box-sizing: border-box; }
+.p-group select { width: 140px; padding: 11px; border-radius: 8px; font-size: 1.2rem; background: #2f3640; color: white; border: 1px solid #718093; cursor: pointer; margin: 0; box-sizing: border-box; }
+
+.btn {
+    background: #27ae60; color: white; padding: 15px 40px; border: none; width: 100%;
+    border-radius: 50px; font-weight: 900; font-size: 1.2rem; cursor: pointer; 
+    box-shadow: 0 8px 0 #1e8449; margin-top: 15px; transition: 0.1s;
+}
+.btn:active { transform: translateY(4px); box-shadow: 0 4px 0 #1e8449; }
+
+#status-bar {
+    background: rgba(255, 255, 255, 0.07); padding: 12px 40px;
+    border-radius: 50px; margin-bottom: 20px; font-size: 1.4rem;
+    font-weight: 800; border: 1px solid rgba(255,255,255,0.1); transition: 0.3s;
+}
+
+#game-frame {
+    position: relative; padding: 10px; background: #d7ccc8;
+    border: 15px solid var(--wood); border-radius: 10px;
+    box-shadow: 0 40px 100px rgba(0,0,0,0.8);
+}
+
+.shake-board { animation: board-shake 0.3s infinite; }
+@keyframes board-shake {
+    0% { transform: translate(2px, 2px) rotate(0deg); }
+    25% { transform: translate(-2px, -2px) rotate(-1deg); }
+    50% { transform: translate(-2px, 2px) rotate(1deg); }
+    75% { transform: translate(2px, -2px) rotate(-1deg); }
+    100% { transform: translate(2px, 2px) rotate(0deg); }
+}
+
+#board { display: grid; grid-template-columns: repeat(10, var(--tile-size)); grid-template-rows: repeat(10, var(--tile-size)); background: #efebe9; }
+.tile { width: var(--tile-size); height: var(--tile-size); border: 0.5px solid rgba(0,0,0,0.05); box-sizing: border-box; padding: 5px; font-size: 11px; color: #a1887f; font-weight: bold; }
+
+canvas { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 10; }
+
+.player {
+    width: 32px; height: 32px; position: absolute; z-index: 100;
+    display: none; justify-content: center; align-items: center;
+    font-size: 28px; 
+    filter: drop-shadow(0 5px 8px rgba(0,0,0,0.6)); 
+    transition: transform 0.1s;
+}
+
+.ui-tray { margin-top: 30px; display: flex; align-items: center; gap: 40px; }
+
+#dice { 
+    width: 80px; height: 80px; box-sizing: border-box; flex-shrink: 0;
+    background: white; border-radius: 15px; display: grid; 
+    grid-template: repeat(3, 1fr) / repeat(3, 1fr); padding: 10px; gap: 4px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
+}
+
+.dot { background: #333; border-radius: 50%; visibility: hidden; width: 100%; height: 100%; }
+.visible { visibility: visible; }
+
+#roll-btn { background: #2ed573; box-shadow: 0 8px 0 #219e52; }
+#roll-btn:disabled { background: #747d8c; box-shadow: 0 8px 0 #2f3542; cursor: wait; }
+.shake-dice { animation: roll-anim 0.3s infinite; }
+@keyframes roll-anim { 50% { transform: rotate(15deg) scale(1.1); } }
