@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Snakes & Ladders: Ultimate Edition</title>
+    <style>
+        :root {
+            --p1-color: #ff4757; --p2-color: #2e86de; 
+            --p3-color: #2ed573; --p4-color: #feca57;
+            --tile-size: 65px; --wood: #2c1e16;
+        }
+
+        body {
+            margin: 0; background: #0b0e14; color: white;
+            font-family: 'Segoe UI', sans-serif;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            min-height: 100vh; overflow: hidden;
+        }
+
+        #overlay, #win-screen {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 2000; backdrop-filter: blur(10px);
+        }
+
+        #win-screen { display: none; z-index: 3000; }
+        #win-screen h1 { font-size: 4rem; margin: 0; text-transform: uppercase; text-shadow: 0 10px 20px rgba(0,0,0,0.8); }
+        .trophy { font-size: 6rem; animation: float 2s ease-in-out infinite; margin-bottom: 20px; }
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-20px) scale(1.1); } }
+
+        .card { background: #1e272e; padding: 40px; border-radius: 20px; text-align: center; border: 1px solid #34495e; box-shadow: 0 20px 50px rgba(0,0,0,0.8); width: 400px; }
+        
+        #player-count { display: block; width: 100%; padding: 12px; margin: 15px 0 25px 0; border-radius: 8px; font-size: 1.1rem; background: #2f3640; color: white; border: 1px solid #718093; box-sizing: border-box; }
+        
+        .p-group { display: none; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+        .p-group.active { display: flex; }
+        .p-group input { flex: 1; padding: 12px; border-radius: 8px; border: none; font-size: 1rem; margin: 0; box-sizing: border-box; }
+        .p-group select { width: 140px; padding: 11px; border-radius: 8px; font-size: 1.2rem; background: #2f3640; color: white; border: 1px solid #718093; cursor: pointer; margin: 0; box-sizing: border-box; }
+
+        .btn {
+            background: #27ae60; color: white; padding: 15px 40px; border: none; width: 100%;
+            border-radius: 50px; font-weight: 900; font-size: 1.2rem; cursor: pointer; 
+            box-shadow: 0 8px 0 #1e8449; margin-top: 15px; transition: 0.1s;
+        }
+        .btn:active { transform: translateY(4px); box-shadow: 0 4px 0 #1e8449; }
+
+        #status-bar {
+            background: rgba(255, 255, 255, 0.07); padding: 12px 40px;
+            border-radius: 50px; margin-bottom: 20px; font-size: 1.4rem;
+            font-weight: 800; border: 1px solid rgba(255,255,255,0.1); transition: 0.3s;
+        }
+
+        #game-frame {
+            position: relative; padding: 10px; background: #d7ccc8;
+            border: 15px solid var(--wood); border-radius: 10px;
+            box-shadow: 0 40px 100px rgba(0,0,0,0.8);
+        }
+
+        .shake-board { animation: board-shake 0.3s infinite; }
+        @keyframes board-shake {
+            0% { transform: translate(2px, 2px) rotate(0deg); }
+            25% { transform: translate(-2px, -2px) rotate(-1deg); }
+            50% { transform: translate(-2px, 2px) rotate(1deg); }
+            75% { transform: translate(2px, -2px) rotate(-1deg); }
+            100% { transform: translate(2px, 2px) rotate(0deg); }
+        }
+
+        #board { display: grid; grid-template-columns: repeat(10, var(--tile-size)); grid-template-rows: repeat(10, var(--tile-size)); background: #efebe9; }
+        .tile { width: var(--tile-size); height: var(--tile-size); border: 0.5px solid rgba(0,0,0,0.05); box-sizing: border-box; padding: 5px; font-size: 11px; color: #a1887f; font-weight: bold; }
+
+        canvas { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 10; }
+
+        .player {
+            width: 32px; height: 32px; position: absolute; z-index: 100;
+            display: none; justify-content: center; align-items: center;
+            font-size: 28px; 
+            filter: drop-shadow(0 5px 8px rgba(0,0,0,0.6)); 
+            transition: transform 0.1s;
+        }
+
+        .ui-tray { margin-top: 30px; display: flex; align-items: center; gap: 40px; }
+        
+        #dice { 
+            width: 80px; height: 80px; box-sizing: border-box; flex-shrink: 0;
+            background: white; border-radius: 15px; display: grid; 
+            grid-template: repeat(3, 1fr) / repeat(3, 1fr); padding: 10px; gap: 4px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
+        }
+        
+        .dot { background: #333; border-radius: 50%; visibility: hidden; width: 100%; height: 100%; }
+        .visible { visibility: visible; }
+        
+        #roll-btn { background: #2ed573; box-shadow: 0 8px 0 #219e52; }
+        #roll-btn:disabled { background: #747d8c; box-shadow: 0 8px 0 #2f3542; cursor: wait; }
+        .shake-dice { animation: roll-anim 0.3s infinite; }
+        @keyframes roll-anim { 50% { transform: rotate(15deg) scale(1.1); } }
+    </style>
+</head>
+<body>
+
+    <div id="overlay">
+        <div class="card">
+            <h2>SNAKE AND LADDERS</h2>
+            <select id="player-count" onchange="updateInputs()">
+                <option value="2">2 Players</option>
+                <option value="3">3 Players</option>
+                <option value="4">4 Players</option>
+            </select>
+            
+            <div id="group1" class="p-group active">
+                <input type="text" id="name1" placeholder="Player 1 Name" value="Striker">
+                <select id="avatar1">
+                    <option value="🥷" selected>🥷 Ninja</option>
+                    <option value="🧙‍♂️">🧙‍♂️ Mage</option>
+                    <option value="🧛‍♂️">🧛‍♂️ Vampire</option>
+                    <option value="🧟">🧟 Zombie</option>
+                    <option value="🤖">🤖 Robot</option>
+                </select>
+            </div>
+            
+            <div id="group2" class="p-group active">
+                <input type="text" id="name2" placeholder="Player 2 Name" value="Viper">
+                <select id="avatar2">
+                    <option value="🥷">🥷 Ninja</option>
+                    <option value="🧙‍♂️" selected>🧙‍♂️ Mage</option>
+                    <option value="🧛‍♂️">🧛‍♂️ Vampire</option>
+                    <option value="🧟">🧟 Zombie</option>
+                    <option value="🤖">🤖 Robot</option>
+                </select>
+            </div>
+
+            <div id="group3" class="p-group">
+                <input type="text" id="name3" placeholder="Player 3 Name" value="Ghost">
+                <select id="avatar3">
+                    <option value="🥷">🥷 Ninja</option>
+                    <option value="🧙‍♂️">🧙‍♂️ Mage</option>
+                    <option value="🧛‍♂️" selected>🧛‍♂️ Vampire</option>
+                    <option value="🧟">🧟 Zombie</option>
+                    <option value="🤖">🤖 Robot</option>
+                </select>
+            </div>
+
+            <div id="group4" class="p-group">
+                <input type="text" id="name4" placeholder="Player 4 Name" value="Shadow">
+                <select id="avatar4">
+                    <option value="🥷">🥷 Ninja</option>
+                    <option value="🧙‍♂️">🧙‍♂️ Mage</option>
+                    <option value="🧛‍♂️">🧛‍♂️ Vampire</option>
+                    <option value="🧟" selected>🧟 Zombie</option>
+                    <option value="🤖">🤖 Robot</option>
+                </select>
+            </div>
+
+            <button class="btn" onclick="beginGame()">ENTER THE PIT</button>
+        </div>
+    </div>
+
+    <div id="win-screen">
+        <div class="trophy">🏆</div>
+        <h1 id="win-text">PLAYER WINS!</h1>
+        <button class="btn" onclick="location.reload()" style="background: #3498db; box-shadow: 0 8px 0 #2980b9;">PLAY AGAIN</button>
+    </div>
+
+    <div id="status-bar">READY?</div>
+
+    <div id="game-frame">
+        <div id="board"></div>
+        <canvas id="asset-layer" width="650" height="650"></canvas>
+        <div id="p1" class="player"></div>
+        <div id="p2" class="player"></div>
+        <div id="p3" class="player"></div>
+        <div id="p4" class="player"></div>
+    </div>
+
+    <div class="ui-tray">
+        <div id="dice">
+            <div class="dot" id="d1"></div><div class="dot" id="d2"></div><div class="dot" id="d3"></div>
+            <div class="dot" id="d4"></div><div class="dot" id="d5"></div><div class="dot" id="d6"></div>
+            <div class="dot" id="d7"></div><div class="dot" id="d8"></div><div class="dot" id="d9"></div>
+        </div>
+        <button id="roll-btn" class="btn" onclick="playTurn()">ROLL DICE</button>
+    </div>
+
+    <script>
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playTone(freq, type, duration, vol = 0.1) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + duration);
+        }
+
+        const SFX = {
+            roll: () => playTone(300, 'square', 0.05, 0.05),
+            hop: () => playTone(600, 'sine', 0.1, 0.05),
+            ladder: () => {
+                let time = 0;
+                [400, 500, 600, 700, 800].forEach(f => {
+                    setTimeout(() => playTone(f, 'sine', 0.1, 0.1), time); time += 100;
+                });
+            },
+            snake: () => { playTone(150, 'sawtooth', 0.8, 0.2); playTone(100, 'square', 0.8, 0.2); },
+            win: () => {
+                let time = 0;
+                [523.25, 659.25, 783.99, 1046.50].forEach(f => {
+                    setTimeout(() => playTone(f, 'square', 0.2, 0.1), time); time += 150;
+                });
+                setTimeout(() => playTone(1046.50, 'square', 0.6, 0.1), 600);
+            }
+        };
+
+        const ladders = { 2:38, 7:14, 8:31, 15:26, 28:84, 51:67, 71:91, 78:98 };
+        const snakes = { 16:6, 46:25, 49:11, 62:19, 64:60, 74:53, 89:68, 94:72, 95:75, 99:23 };
+        const pColors = ['var(--p1-color)', 'var(--p2-color)', 'var(--p3-color)', 'var(--p4-color)'];
+        
+        // Adjective Banks
+        const posAdjectives = ["SUPER", "FABULOUS", "AMAZING", "SPECTACULAR", "BRILLIANT"];
+        const negAdjectives = ["BRUTAL", "TERRIBLE", "HORRIBLE", "DEVASTATING", "TRAGIC"];
+        
+        let playerCount = 2;
+        let names = [];
+        let pos = [];
+        let turn = 0;
+        let moving = false;
+
+        // Hidden Curse Variables
+        let cursedPlayer = null;
+        let curseFulfilled = false;
+
+        function updateInputs() {
+            const count = parseInt(document.getElementById('player-count').value);
+            for (let i = 1; i <= 4; i++) {
+                document.getElementById(`group${i}`).style.display = i <= count ? 'flex' : 'none';
+            }
+        }
+
+        function beginGame() {
+            if (audioCtx.state === 'suspended') audioCtx.resume(); 
+            playerCount = parseInt(document.getElementById('player-count').value);
+            
+            for (let i = 0; i < playerCount; i++) {
+                names.push(document.getElementById(`name${i+1}`).value || `Player ${i+1}`);
+                pos.push(1);
+                const playerEl = document.getElementById(`p${i+1}`);
+                playerEl.innerText = document.getElementById(`avatar${i+1}`).value;
+                playerEl.style.display = 'flex';
+            }
+
+            document.getElementById('overlay').style.display = 'none';
+            updateStatus();
+            initBoard();
+        }
+
+        function initBoard() {
+            const b = document.getElementById('board');
+            for (let r = 9; r >= 0; r--) {
+                let row = [];
+                for (let c = 1; c <= 10; c++) row.push(r * 10 + c);
+                if (r % 2 !== 0) row.reverse();
+                row.forEach(n => {
+                    const t = document.createElement('div');
+                    t.className = 'tile'; t.id = `t${n}`; t.innerText = n;
+                    b.appendChild(t);
+                });
+            }
+            setTimeout(() => { drawBoardAssets(); instantPlaceTokens(); }, 200);
+        }
+
+        function getXY(n) {
+            const t = document.getElementById(`t${n}`);
+            return { x: t.offsetLeft + 32.5, y: t.offsetTop + 32.5 };
+        }
+
+        function getOffset(playerIndex) {
+            const offsets = [{x:-12, y:-18}, {x:8, y:-18}, {x:-12, y:2}, {x:8, y:2}];
+            return offsets[playerIndex];
+        }
+
+        function drawBoardAssets() {
+            const ctx = document.getElementById('asset-layer').getContext('2d');
+            ctx.clearRect(0, 0, 650, 650);
+            
+            for (let s in ladders) {
+                const start = getXY(s); const end = getXY(ladders[s]);
+                const ang = Math.atan2(end.y - start.y, end.x - start.x);
+                const d = Math.hypot(end.y - start.y, end.x - start.x);
+                ctx.save(); ctx.translate(start.x, start.y); ctx.rotate(ang);
+                ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                ctx.fillStyle = '#5d4037'; ctx.fillRect(0, -15, d, 6); ctx.fillRect(0, 9, d, 6);
+                ctx.fillStyle = '#3e2723';
+                for (let i = 10; i < d; i += 20) ctx.fillRect(i, -15, 3, 30);
+                ctx.restore();
+            }
+
+            for (let head in snakes) {
+                const s = getXY(head); const e = getXY(snakes[head]);
+                const dist = Math.hypot(e.x - s.x, e.y - s.y);
+                const ang = Math.atan2(e.y - s.y, e.x - s.x);
+
+                ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(ang);
+                ctx.shadowBlur = 15; ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowOffsetY = 8;
+                ctx.beginPath(); ctx.moveTo(0, 0);
+                for(let i = 0; i <= dist; i += 5) ctx.lineTo(i, Math.sin(i * 0.05) * 15);
+                
+                ctx.lineWidth = 14; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+                ctx.strokeStyle = '#1a1a1a'; ctx.stroke();
+                ctx.shadowColor = 'transparent'; ctx.strokeStyle = '#2ecc71'; 
+                ctx.setLineDash([8, 20]); ctx.stroke(); ctx.setLineDash([]); 
+
+                ctx.fillStyle = '#111'; ctx.beginPath(); 
+                ctx.moveTo(-18, 0); ctx.lineTo(10, 14); ctx.lineTo(10, -14); ctx.fill();
+
+                ctx.fillStyle = '#2ecc71'; ctx.shadowBlur = 10; ctx.shadowColor = '#2ecc71'; 
+                ctx.beginPath(); ctx.ellipse(-2, -6, 4, 1.5, -Math.PI/4, 0, Math.PI*2);
+                ctx.ellipse(-2, 6, 4, 1.5, Math.PI/4, 0, Math.PI*2); ctx.fill();
+
+                ctx.shadowBlur = 0; ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 2; 
+                ctx.beginPath(); ctx.moveTo(-18, 0); ctx.lineTo(-28, 0); ctx.lineTo(-34, -5); 
+                ctx.moveTo(-28, 0); ctx.lineTo(-34, 5); ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        function animateMove(el, startXY, endXY, duration, isSnake, playerIndex) {
+            return new Promise(resolve => {
+                const startTime = performance.now();
+                const off = getOffset(playerIndex);
+                
+                function step(time) {
+                    let progress = (time - startTime) / duration;
+                    if (progress > 1) progress = 1;
+                    const ease = progress < 0.5 ? 2 * progress * progress : -1 + (4 - 2 * progress) * progress;
+                    
+                    const x = startXY.x + (endXY.x - startXY.x) * ease;
+                    const y = startXY.y + (endXY.y - startXY.y) * ease;
+                    
+                    el.style.left = (x + off.x) + 'px'; el.style.top = (y + off.y) + 'px';
+                    
+                    if (isSnake) el.style.transform = `scale(0.8) rotate(${progress * 1080}deg)`;
+                    else el.style.transform = `translateY(-${Math.abs(Math.sin(progress * Math.PI * 6)) * 15}px) scale(1.1)`;
+
+                    if (progress < 1) requestAnimationFrame(step);
+                    else { el.style.transform = "scale(1) translateY(0) rotate(0deg)"; resolve(); }
+                }
+                requestAnimationFrame(step);
+            });
+        }
+
+        async function playTurn() {
+            if (moving) return;
+            moving = true;
+            document.getElementById('roll-btn').disabled = true;
+            document.getElementById('dice').classList.add('shake-dice');
+
+            // Set the Curse if a player enters the 90s
+            if (cursedPlayer === null && pos[turn] >= 90 && !curseFulfilled) {
+                cursedPlayer = turn;
+            }
+
+            let rollInterval = setInterval(SFX.roll, 100);
+            let roll = Math.floor(Math.random() * 6) + 1;
+
+            // Trigger the rigged dice if the cursed player is about to pass 99
+            if (cursedPlayer === turn && !curseFulfilled && pos[turn] + roll >= 99) {
+                roll = 99 - pos[turn]; // Magically lands exactly on 99
+                curseFulfilled = true; // The curse has claimed its victim, lifted for everyone else
+            }
+
+            await new Promise(r => setTimeout(r, 600));
+            clearInterval(rollInterval);
+            document.getElementById('dice').classList.remove('shake-dice');
+            showDice(roll);
+
+            if (pos[turn] + roll <= 100) {
+                for (let i = 0; i < roll; i++) {
+                    pos[turn]++; 
+                    instantPlaceTokens(true); 
+                    SFX.hop();
+                    await new Promise(r => setTimeout(r, 250));
+                }
+
+                const jump = ladders[pos[turn]] || snakes[pos[turn]];
+                if (jump) {
+                    const isSnake = !!snakes[pos[turn]];
+                    await new Promise(r => setTimeout(r, 400));
+                    
+                    const startNode = pos[turn]; pos[turn] = jump; 
+                    const el = document.getElementById(`p${turn+1}`);
+                    const startXY = getXY(startNode); const endXY = getXY(jump);
+                    const statusBar = document.getElementById('status-bar');
+
+                    const pAdj = posAdjectives[Math.floor(Math.random() * posAdjectives.length)];
+                    const nAdj = negAdjectives[Math.floor(Math.random() * negAdjectives.length)];
+
+                    if (isSnake) {
+                        SFX.snake();
+                        statusBar.innerText = `${nAdj} SNAKE BITE! 🐍`; 
+                        statusBar.style.color = "#ff4757"; statusBar.style.transform = "scale(1.1)";
+                        document.getElementById('game-frame').classList.add('shake-board');
+                    } else {
+                        SFX.ladder();
+                        statusBar.innerText = `${pAdj} CLIMBING! 🪜`; 
+                        statusBar.style.color = "#2ed573";
+                    }
+
+                    await animateMove(el, startXY, endXY, isSnake ? 800 : 1200, isSnake, turn);
+                    
+                    document.getElementById('game-frame').classList.remove('shake-board');
+                    statusBar.style.transform = "scale(1)";
+                }
+            } else {
+                const statusBar = document.getElementById('status-bar');
+                statusBar.innerText = "TOO HIGH! STAY PUT."; 
+                statusBar.style.color = "#feca57";
+                await new Promise(r => setTimeout(r, 1200)); 
+            }
+
+            if (pos[turn] === 100) {
+                SFX.win();
+                document.getElementById('win-text').innerText = `${names[turn]} WINS!`;
+                document.getElementById('win-text').style.color = pColors[turn];
+                document.getElementById('win-screen').style.display = 'flex';
+            } else {
+                turn = (turn + 1) % playerCount;
+                updateStatus();
+                moving = false; document.getElementById('roll-btn').disabled = false;
+            }
+        }
+
+        function updateStatus() {
+            const s = document.getElementById('status-bar');
+            s.innerText = `${names[turn].toUpperCase()}'S TURN`;
+            s.style.color = pColors[turn];
+        }
+
+        function instantPlaceTokens(hop = false) {
+            for (let i = 0; i < playerCount; i++) {
+                const c = getXY(pos[i]);
+                const el = document.getElementById(`p${i+1}`);
+                const off = getOffset(i);
+                
+                el.style.left = (c.x + off.x) + 'px';
+                el.style.top = (c.y + off.y) + 'px';
+                
+                if (hop && i === turn) {
+                    el.style.transform = "scale(1.2) translateY(-10px)";
+                    setTimeout(() => el.style.transform = "scale(1) translateY(0)", 150);
+                }
+            }
+        }
+
+        function showDice(n) {
+            document.querySelectorAll('.dot').forEach(d => d.classList.remove('visible'));
+            const m = { 1:[5], 2:[1,9], 3:[1,5,9], 4:[1,3,7,9], 5:[1,3,5,7,9], 6:[1,3,4,6,7,9] };
+            m[n].forEach(id => document.getElementById(`d${id}`).classList.add('visible'));
+        }
+    </script>
+</body>
+</html>
